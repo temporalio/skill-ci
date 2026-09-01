@@ -1,0 +1,117 @@
+name: Fetch Skill
+
+on:
+  workflow_call:
+    inputs:
+      skill_repo:
+        required: true
+        type: string
+      package_strategy:
+        required: true
+        type: string
+      rollback_version:
+        required: false
+        type: string
+    secrets:
+      APP_CLIENT_ID:
+        required: true
+      APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  fetch_skill:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve skill name
+        id: skill
+        env:
+          SKILL_REPO: ${{ inputs.skill_repo }}
+        run: |
+          echo "name=${SKILL_REPO#skill-}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout skill-ci repo
+        if: ${{ inputs.package_strategy == 'rollback' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        if: ${{ inputs.package_strategy == 'rollback' }}
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
+
+      - name: Validate rollback version
+        if: ${{ inputs.package_strategy == 'rollback' }}
+        env:
+          ROLLBACK_VERSION: ${{ inputs.rollback_version }}
+        run: uv run .github/scripts/validate_rollback_version.py "$ROLLBACK_VERSION"
+
+      - name: Generate token from GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: ${{ inputs.skill_repo }}
+
+      - name: Checkout skill at rollback tag
+        if: ${{ inputs.package_strategy == 'rollback' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: temporalio/${{ inputs.skill_repo }}
+          ref: v${{ inputs.rollback_version }}
+          path: overlay
+          persist-credentials: false
+          sparse-checkout: |
+            SKILL.md
+            references
+            scripts
+            assets
+          sparse-checkout-cone-mode: false
+
+      - name: Resolve latest skill release
+        if: ${{ inputs.package_strategy != 'rollback' }}
+        id: latest_release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SKILL_REPO: ${{ inputs.skill_repo }}
+        run: |
+          set -euo pipefail
+          ref=$(gh api "repos/temporalio/$SKILL_REPO/releases/latest" --jq .tag_name)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout skill at latest release
+        if: ${{ inputs.package_strategy != 'rollback' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: temporalio/${{ inputs.skill_repo }}
+          ref: ${{ steps.latest_release.outputs.ref }}
+          path: overlay
+          persist-credentials: false
+          sparse-checkout: |
+            SKILL.md
+            references
+            scripts
+            assets
+          sparse-checkout-cone-mode: false
+
+      - name: Drop nested git metadata
+        run: rm -rf overlay/.git
+
+      - name: Tar skill overlay
+        run: tar -C overlay -cf overlay.tar .
+
+      - name: Upload skill overlay
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.skill.outputs.name }}
+          path: overlay.tar
+          if-no-files-found: error
+          retention-days: 1

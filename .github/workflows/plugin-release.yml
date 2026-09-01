@@ -1,0 +1,72 @@
+name: Plugin Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      skill-temporal-cloud-setup_package_strategy: &skill_package_strategy
+        required: true
+        type: choice
+        default: latest
+        options: [patch, minor, major, latest, rollback]
+      skill-temporal-cloud-setup_rollback_version: &rollback_version
+        required: false
+        type: string
+        default: ''
+      skill-temporal-developer_package_strategy: *skill_package_strategy
+      skill-temporal-developer_rollback_version: *rollback_version
+      skill-temporal-ops_package_strategy: *skill_package_strategy
+      skill-temporal-ops_rollback_version: *rollback_version
+      skill-temporal-serverless_package_strategy: *skill_package_strategy
+      skill-temporal-serverless_rollback_version: *rollback_version
+      
+      claude-temporal-plugin_package_strategy: &plugin_package_strategy
+        required: true
+        type: choice
+        default: latest
+        options: [patch, minor, major, latest]
+      codex-temporal-plugin_package_strategy: *plugin_package_strategy
+      cursor-temporal-plugin_package_strategy: *plugin_package_strategy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-release
+  cancel-in-progress: false
+
+jobs:
+  bump_skills:
+    strategy:
+      fail-fast: false
+      matrix:
+        skill_repo: [skill-temporal-cloud-setup, skill-temporal-developer, skill-temporal-ops, skill-temporal-serverless]
+    uses: ./.github/workflows/bump-skill.yml
+    secrets: inherit
+    with:
+      skill_repo: ${{ matrix.skill_repo }}
+      package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.skill_repo)] }}
+
+  fetch_skills:
+    needs: bump_skills
+    strategy:
+      fail-fast: true
+      matrix:
+        skill_repo: [skill-temporal-cloud-setup, skill-temporal-developer, skill-temporal-ops, skill-temporal-serverless]
+    uses: ./.github/workflows/fetch-skill.yml
+    secrets: inherit
+    with:
+      skill_repo: ${{ matrix.skill_repo }}
+      package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.skill_repo)] }}
+      rollback_version: ${{ inputs[format('{0}_rollback_version', matrix.skill_repo)] }}
+
+  bump_plugins:
+    needs: fetch_skills
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin_repo: [claude-temporal-plugin, codex-temporal-plugin, cursor-temporal-plugin]
+    uses: ./.github/workflows/bump-plugin.yml
+    secrets: inherit
+    with:
+      plugin_repo: ${{ matrix.plugin_repo }}
+      package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.plugin_repo)] }}

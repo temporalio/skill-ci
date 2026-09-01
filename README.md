@@ -1,84 +1,60 @@
 # skill-ci
 
-Shared CI for Temporal **skill** repos. Hosts a reusable GitHub Actions workflow
-that packages a skill and syncs it into the plugin repos
-(`cursor-temporal-plugin`, `codex-temporal-plugin`, `claude-temporal-plugin`).
+A Temporal plugin release spans several skill and plugin repositories. This repo is the CI that coordinates that work. Dispatch **Plugin Release** here to ship new content across:
 
-## Usage
+Skills:
 
-In a skill repo (named `skill-<name>`), add `.github/workflows/package-skill.yml`:
+- `skill-temporal-cloud-setup`
+- `skill-temporal-developer`
+- `skill-temporal-ops`
+- `skill-temporal-serverless`
+
+Plugins:
+
+- `claude-temporal-plugin`
+- `codex-temporal-plugin`
+- `cursor-temporal-plugin`
+
+## Releasing new versions
+
+| Strategy | Skills | Plugins | Effect |
+|----------|--------|---------|--------|
+| `patch` / `minor` / `major` | yes | yes | 1. Bump version<br>2. Open a release PR and auto merge it<br>3. Create a GitHub Release<br>4. Use this new release |
+| `latest` | yes | yes | Use the latest release instead of releasing a new version |
+| `rollback` | yes | no | Use `v{rollback_version}` instead of releasing a new version |
+
+## Syncing
+
+When syncing content between the skills and the plugins the following nodes are checked out:
+- `SKILL.md`
+- `references`
+- `scripts`
+- `assets`
+
+The content is then placed in the following locations:
+
+- Cursor and Claude: `skills/{name}`
+- Codex: `plugins/temporal/skills/{name}`
+
+## Secrets
+
+| Secret             | Description |
+|--------------------|-------------|
+| `APP_CLIENT_ID`    | GitHub App **client ID** |
+| `APP_PRIVATE_KEY`  | GitHub App private key (PEM) |
+
+The app needs **Contents (write)** and **Pull Requests (write)** permissions.
+
+## How to add a new skill repo
+
+1. Install the GitHub App on the new skill repo with Contents (write) and Pull Requests (write).
+2. In [`.github/workflows/plugin-release.yml`](.github/workflows/plugin-release.yml) add the new inputs, then append the repo to all skill matrices.
+3. In [`.github/workflows/bump-plugin.yml`](.github/workflows/bump-plugin.yml) add a named `download-artifact` step into that skill's dest folder.
+
 
 ```yaml
-name: Package and Sync Skill
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump for a one-click release"
-        type: choice
-        required: true
-        default: patch
-        options: [patch, minor, major]
-
-jobs:
-  package-and-sync:
-    uses: temporalio/skill-ci/.github/workflows/package-and-sync.yml@v1
-    permissions:
-      contents: write
-    secrets: inherit
-    with:
-      # On workflow_dispatch this is the chosen bump; on push it's empty.
-      bump: ${{ inputs.bump }}
-      # includes: "SKILL.md agents references scripts"
+skill-temporal-example_package_strategy: *skill_package_strategy
+skill-temporal-example_rollback_version: *rollback_version
+...
+skill_repo: [..., skill-temporal-example]
 ```
-
-That's the entire caller. The reusable workflow derives the skill name from the
-caller repo's name (dropping the `skill-` prefix) and opens sync PRs against the
-plugin repos. There are two ways to cut a release:
-
-- **One-click (recommended):** run the workflow manually (Actions → *Run
-  workflow*) and pick a `bump` (`patch`/`minor`/`major`). The workflow rewrites
-  `version:` in `SKILL.md`, pushes that commit to `main`, then releases + syncs.
-- **Manual edit:** bump `version:` in `SKILL.md` yourself and push to `main`; the
-  workflow releases + syncs when it sees a version it hasn't tagged yet.
-
-### Inputs
-
-| Input      | Default                              | Description |
-|------------|--------------------------------------|-------------|
-| `includes` | `SKILL.md agents references scripts` | Space-separated whitelist of paths that ARE part of the skill. Only these are packaged and synced; everything else is ignored. Missing entries are skipped, so the default can list optional dirs. Override to add new skill content. |
-| `bump`     | `""` (empty)                         | One-click release: `patch`, `minor`, or `major`. When set, rewrites `SKILL.md`'s version and pushes the bump to the default branch before releasing. Empty (push events) => release only on a manual version change. Requires `RELEASE_SSH_KEY`. |
-
-Per-target exception: `agents/openai.yaml` configures Codex, so it is synced only
-to `codex-temporal-plugin` — the Cursor and Claude plugin repos never receive it
-(and it is removed from them if an earlier sync had copied it there). It is still
-included in the release ZIP.
-
-### Secrets
-
-`secrets: inherit` passes these through from the caller (set them as
-**org-level secrets** scoped to the skill repos so they only need to exist once):
-
-| Secret               | Required | Description |
-|----------------------|----------|-------------|
-| `SKILL_T_DEV_APP_ID` | yes      | GitHub App ID used to open cross-repo sync PRs. |
-| `SKILL_T_DEV_KEY`    | yes      | GitHub App private key (PEM). |
-| `RELEASE_SSH_KEY`    | for `bump` | SSH deploy key used to push the version-bump commit to the default branch. Only needed if you use the one-click `bump`. |
-
-The GitHub App must be installed on the three plugin repos with **Contents (write)**
-and **Pull Requests (write)**.
-
-`RELEASE_SSH_KEY` is a **per-repo** deploy key (each skill repo needs its own key
-pair — set the private key as a repo secret, add the public key as a deploy key
-with write access). Because pushes to `main` are ruleset-protected, the deploy key
-must also be listed in the default branch ruleset's **bypass actors**.
-
-## Requirements
-
-- This repo's **Actions → General → Access** must allow use from other
-  `temporalio` repositories (needed for internal/private reusable workflows).
-- Callers pin to a tag (e.g. `@v1`). Advance the `v1` tag here to roll a fix
-  out to every skill at once.
