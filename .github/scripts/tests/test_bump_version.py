@@ -75,13 +75,22 @@ class TestSetVersion(unittest.TestCase):
             "\n"
             "# Skill\n"
         )
-        expected = src.replace("version: 0.2.0", "version: 0.2.1")
+        expected = (
+            "---\n"
+            "name: temporal-ops\n"
+            "description: 'A long description that must remain on one line.'\n"
+            "version: 0.2.1\n"
+            "disable-model-invocation: true\n"
+            "---\n"
+            "\n"
+            "# Skill\n"
+        )
 
         self.assertEqual(set_version(src, "0.2.1"), expected)
 
     def test_preserves_crlf_and_missing_final_newline(self):
         src = "---\r\nname: temporal-serverless\r\nversion: 0.6.0\r\n---"
-        expected = src.replace("0.6.0", "0.6.1")
+        expected = "---\r\nname: temporal-serverless\r\nversion: 0.6.1\r\n---"
 
         self.assertEqual(set_version(src, "0.6.1"), expected)
 

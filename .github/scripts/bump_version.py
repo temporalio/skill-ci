@@ -1,13 +1,9 @@
 import argparse
 import json
-import re
 from pathlib import Path
 
 import frontmatter
 import semver
-
-
-VERSION_LINE = re.compile(r"(?m)^version: [^\r\n]+(?=\r?$)")
 
 
 def get_next_version(tag: str, strategy: str) -> str:
@@ -23,11 +19,11 @@ def set_version(text: str, version: str) -> str:
     if "version" not in post.metadata:
         raise ValueError("SKILL.md frontmatter must contain a version")
 
-    updated, count = VERSION_LINE.subn(f"version: {version}", text)
-    if count != 1:
+    current = f"version: {post['version']}"
+    if text.count("version: ") != 1 or current not in text:
         raise ValueError("SKILL.md frontmatter must contain exactly one version")
 
-    return updated
+    return text.replace(current, f"version: {version}", 1)
 
 
 def set_json_version(text: str, version: str) -> str:
