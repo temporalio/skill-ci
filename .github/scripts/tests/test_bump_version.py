@@ -85,6 +85,29 @@ class TestSetVersion(unittest.TestCase):
 
         self.assertEqual(set_version(src, "0.6.1"), expected)
 
+    def test_rejects_missing_version(self):
+        src = fixture("""
+            ---
+            name: temporal-developer
+            description: The Temporal Developer skill
+            ---
+            """)
+
+        with self.assertRaises(ValueError):
+            set_version(src, "0.1.0")
+
+    def test_rejects_multiple_versions(self):
+        src = fixture("""
+            ---
+            name: temporal-developer
+            version: 0.5.0
+            version: 0.5.1
+            ---
+            """)
+
+        with self.assertRaises(ValueError):
+            set_version(src, "0.5.2")
+
     def test_rejects_missing_frontmatter(self):
         with self.assertRaises(ValueError):
             set_version("# Skill\n", "1.0.0")

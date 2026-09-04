@@ -15,16 +15,22 @@ def set_version(text: str, version: str) -> str:
     if not lines or lines[0].rstrip("\r\n") != "---":
         raise ValueError("SKILL.md must start with YAML frontmatter")
 
+    version_lines = []
     for index, line in enumerate(lines[1:], start=1):
         content = line.rstrip("\r\n")
         if content == "---":
             break
         if content.startswith("version: "):
-            newline = line[len(content) :]
-            lines[index] = f"version: {version}{newline}"
-            return "".join(lines)
+            version_lines.append(index)
 
-    raise ValueError("SKILL.md frontmatter must contain a version")
+    if len(version_lines) != 1:
+        raise ValueError("SKILL.md frontmatter must contain exactly one version")
+
+    index = version_lines[0]
+    content = lines[index].rstrip("\r\n")
+    newline = lines[index][len(content) :]
+    lines[index] = f"version: {version}{newline}"
+    return "".join(lines)
 
 
 def set_json_version(text: str, version: str) -> str:
