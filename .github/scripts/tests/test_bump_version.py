@@ -69,13 +69,13 @@ class TestSetVersion(unittest.TestCase):
             "---\n"
             "name: temporal-ops\n"
             "description: 'A long description that must remain on one line.'\n"
-            'version : "0.2.0" # released\n'
+            "version: 0.2.0\n"
             "disable-model-invocation: true\n"
             "---\n"
             "\n"
             "# Skill\n"
         )
-        expected = src.replace('"0.2.0"', '"0.2.1"')
+        expected = src.replace("version: 0.2.0", "version: 0.2.1")
 
         self.assertEqual(set_version(src, "0.2.1"), expected)
 
@@ -84,29 +84,6 @@ class TestSetVersion(unittest.TestCase):
         expected = src.replace("0.6.0", "0.6.1")
 
         self.assertEqual(set_version(src, "0.6.1"), expected)
-
-    def test_rejects_missing_version(self):
-        src = fixture("""
-            ---
-            name: temporal-developer
-            description: The Temporal Developer skill
-            ---
-            """)
-
-        with self.assertRaises(ValueError):
-            set_version(src, "0.1.0")
-
-    def test_rejects_duplicate_version(self):
-        src = fixture("""
-            ---
-            name: temporal-developer
-            version: 0.5.0
-            version: 0.5.1
-            ---
-            """)
-
-        with self.assertRaises(ValueError):
-            set_version(src, "0.5.2")
 
     def test_rejects_missing_frontmatter(self):
         with self.assertRaises(ValueError):

@@ -1,21 +1,8 @@
 import argparse
 import json
-import re
 from pathlib import Path
 
 import semver
-
-
-FRONTMATTER = re.compile(
-    r"\A---\r?\n(?P<body>.*?)(?=\r?\n---(?:\r?\n|\Z))",
-    re.DOTALL,
-)
-VERSION = re.compile(
-    r"^version[ \t]*:[ \t]*"
-    r"(?P<value>\"[^\r\n\"]*\"|'[^\r\n']*'|[^\s#'\"]+)"
-    r"(?=[ \t]*(?:#[^\r\n]*)?\r?$)",
-    re.MULTILINE,
-)
 
 
 def get_next_version(tag: str, strategy: str) -> str:
@@ -24,21 +11,20 @@ def get_next_version(tag: str, strategy: str) -> str:
 
 
 def set_version(text: str, version: str) -> str:
-    frontmatter = FRONTMATTER.match(text)
-    if frontmatter is None:
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\r\n") != "---":
         raise ValueError("SKILL.md must start with YAML frontmatter")
 
-    matches = list(VERSION.finditer(frontmatter["body"]))
-    if len(matches) != 1:
-        raise ValueError("SKILL.md frontmatter must contain exactly one version")
+    for index, line in enumerate(lines[1:], start=1):
+        content = line.rstrip("\r\n")
+        if content == "---":
+            break
+        if content.startswith("version: "):
+            newline = line[len(content) :]
+            lines[index] = f"version: {version}{newline}"
+            return "".join(lines)
 
-    match = matches[0]
-    current = match["value"]
-    quote = current[0] if current[0] in "\"'" else ""
-    replacement = f"{quote}{version}{quote}"
-    start = frontmatter.start("body") + match.start("value")
-    end = frontmatter.start("body") + match.end("value")
-    return text[:start] + replacement + text[end:]
+    raise ValueError("SKILL.md frontmatter must contain a version")
 
 
 def set_json_version(text: str, version: str) -> str:
@@ -57,12 +43,12 @@ def main():
     args = parser.parse_args()
 
     new_version = get_next_version(args.tag, args.strategy)
-    text = args.path.read_bytes().decode("utf-8")
+    text = args.path.read_text(encoding="utf-8", newline="")
     if args.path.suffix == ".json":
         updated = set_json_version(text, new_version)
     else:
         updated = set_version(text, new_version)
-    args.path.write_bytes(updated.encode("utf-8"))
+    args.path.write_text(updated, encoding="utf-8", newline="")
     print(new_version)
 
 
