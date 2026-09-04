@@ -1,8 +1,13 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
+import frontmatter
 import semver
+
+
+VERSION_LINE = re.compile(r"(?m)^version: [^\r\n]+(?=\r?$)")
 
 
 def get_next_version(tag: str, strategy: str) -> str:
@@ -11,26 +16,18 @@ def get_next_version(tag: str, strategy: str) -> str:
 
 
 def set_version(text: str, version: str) -> str:
-    lines = text.splitlines(keepends=True)
-    if not lines or lines[0].rstrip("\r\n") != "---":
+    if not frontmatter.checks(text):
         raise ValueError("SKILL.md must start with YAML frontmatter")
 
-    version_lines = []
-    for index, line in enumerate(lines[1:], start=1):
-        content = line.rstrip("\r\n")
-        if content == "---":
-            break
-        if content.startswith("version: "):
-            version_lines.append(index)
+    post = frontmatter.loads(text)
+    if "version" not in post.metadata:
+        raise ValueError("SKILL.md frontmatter must contain a version")
 
-    if len(version_lines) != 1:
+    updated, count = VERSION_LINE.subn(f"version: {version}", text)
+    if count != 1:
         raise ValueError("SKILL.md frontmatter must contain exactly one version")
 
-    index = version_lines[0]
-    content = lines[index].rstrip("\r\n")
-    newline = lines[index][len(content) :]
-    lines[index] = f"version: {version}{newline}"
-    return "".join(lines)
+    return updated
 
 
 def set_json_version(text: str, version: str) -> str:
