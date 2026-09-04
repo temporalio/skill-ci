@@ -1,9 +1,21 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
-import frontmatter
 import semver
+
+
+FRONTMATTER = re.compile(
+    r"\A---\r?\n(?P<body>.*?)(?=\r?\n---(?:\r?\n|\Z))",
+    re.DOTALL,
+)
+VERSION = re.compile(
+    r"^version[ \t]*:[ \t]*"
+    r"(?P<value>\"[^\r\n\"]*\"|'[^\r\n']*'|[^\s#'\"]+)"
+    r"(?=[ \t]*(?:#[^\r\n]*)?\r?$)",
+    re.MULTILINE,
+)
 
 
 def get_next_version(tag: str, strategy: str) -> str:
@@ -12,11 +24,21 @@ def get_next_version(tag: str, strategy: str) -> str:
 
 
 def set_version(text: str, version: str) -> str:
-    if not frontmatter.checks(text):
+    frontmatter = FRONTMATTER.match(text)
+    if frontmatter is None:
         raise ValueError("SKILL.md must start with YAML frontmatter")
-    post = frontmatter.loads(text)
-    post["version"] = version
-    return frontmatter.dumps(post, sort_keys=False)
+
+    matches = list(VERSION.finditer(frontmatter["body"]))
+    if len(matches) != 1:
+        raise ValueError("SKILL.md frontmatter must contain exactly one version")
+
+    match = matches[0]
+    current = match["value"]
+    quote = current[0] if current[0] in "\"'" else ""
+    replacement = f"{quote}{version}{quote}"
+    start = frontmatter.start("body") + match.start("value")
+    end = frontmatter.start("body") + match.end("value")
+    return text[:start] + replacement + text[end:]
 
 
 def set_json_version(text: str, version: str) -> str:
@@ -35,11 +57,12 @@ def main():
     args = parser.parse_args()
 
     new_version = get_next_version(args.tag, args.strategy)
-    text = args.path.read_text()
+    text = args.path.read_bytes().decode("utf-8")
     if args.path.suffix == ".json":
-        args.path.write_text(set_json_version(text, new_version))
+        updated = set_json_version(text, new_version)
     else:
-        args.path.write_text(set_version(text, new_version))
+        updated = set_version(text, new_version)
+    args.path.write_bytes(updated.encode("utf-8"))
     print(new_version)
 
 
