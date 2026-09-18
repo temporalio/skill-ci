@@ -1,14 +1,15 @@
-import textwrap
 import unittest
 
-from bump_version import get_next_version, set_json_version, set_version
-
-
-def fixture(s: str) -> str:
-    return textwrap.dedent(s).strip()
+from bump_version import set_json_version
+from next_version import get_next_version
 
 
 class TestGetNextVersion(unittest.TestCase):
+    def test_initial_version(self):
+        for strategy in ("patch", "minor", "major"):
+            with self.subTest(strategy=strategy):
+                self.assertEqual(get_next_version("", strategy), "0.1.0")
+
     def test_next_version(self):
         cases = (
             ("v0.0.0", "patch", "0.0.1"),
@@ -22,104 +23,28 @@ class TestGetNextVersion(unittest.TestCase):
             with self.subTest(tag=tag, strategy=strategy):
                 self.assertEqual(get_next_version(tag, strategy), expected)
 
+    def test_rejects_invalid_tag(self):
+        with self.assertRaises(ValueError):
+            get_next_version("not-a-version", "patch")
+
+    def test_rejects_invalid_strategy(self):
+        with self.assertRaises(ValueError):
+            get_next_version("", "latest")
+
 
 class TestSetJsonVersion(unittest.TestCase):
     def test_update_version(self):
-        src = fixture("""
-            {
-              "name": "temporal",
-              "version": "0.4.0",
-              "description": "lifecycle — developing"
-            }
-            """)
-        expected = fixture("""
-            {
-              "name": "temporal",
-              "version": "0.4.1",
-              "description": "lifecycle — developing"
-            }
-            """)
+        src = '{"name":"temporal","version":"0.4.0","description":"lifecycle — developing"}'
+        expected = """{
+  "name": "temporal",
+  "version": "0.4.1",
+  "description": "lifecycle — developing"
+}"""
         self.assertEqual(set_json_version(src, "0.4.1"), expected)
 
     def test_rejects_non_object(self):
         with self.assertRaises(ValueError):
             set_json_version("[]", "1.0.0")
-
-
-class TestSetVersion(unittest.TestCase):
-    def test_update_version(self):
-        src = fixture("""
-            ---
-            name: temporal-developer
-            description: The Temporal Developer skill
-            version: 0.5.0
-            ---
-            """)
-        expected = fixture("""
-            ---
-            name: temporal-developer
-            description: The Temporal Developer skill
-            version: 0.5.1
-            ---
-            """)
-        self.assertEqual(set_version(src, "0.5.1"), expected)
-
-    def test_preserves_formatting(self):
-        src = (
-            "---\n"
-            "name: temporal-ops\n"
-            "description: 'A long description that must remain on one line.'\n"
-            "version: 0.2.0\n"
-            "disable-model-invocation: true\n"
-            "---\n"
-            "\n"
-            "# Skill\n"
-        )
-        expected = (
-            "---\n"
-            "name: temporal-ops\n"
-            "description: 'A long description that must remain on one line.'\n"
-            "version: 0.2.1\n"
-            "disable-model-invocation: true\n"
-            "---\n"
-            "\n"
-            "# Skill\n"
-        )
-
-        self.assertEqual(set_version(src, "0.2.1"), expected)
-
-    def test_preserves_crlf_and_missing_final_newline(self):
-        src = "---\r\nname: temporal-serverless\r\nversion: 0.6.0\r\n---"
-        expected = "---\r\nname: temporal-serverless\r\nversion: 0.6.1\r\n---"
-
-        self.assertEqual(set_version(src, "0.6.1"), expected)
-
-    def test_rejects_missing_version(self):
-        src = fixture("""
-            ---
-            name: temporal-developer
-            description: The Temporal Developer skill
-            ---
-            """)
-
-        with self.assertRaises(ValueError):
-            set_version(src, "0.1.0")
-
-    def test_rejects_multiple_versions(self):
-        src = fixture("""
-            ---
-            name: temporal-developer
-            version: 0.5.0
-            version: 0.5.1
-            ---
-            """)
-
-        with self.assertRaises(ValueError):
-            set_version(src, "0.5.2")
-
-    def test_rejects_missing_frontmatter(self):
-        with self.assertRaises(ValueError):
-            set_version("# Skill\n", "1.0.0")
 
 
 if __name__ == "__main__":

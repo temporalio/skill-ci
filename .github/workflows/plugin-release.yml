@@ -35,19 +35,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  bump_skills:
+  release_skills:
     strategy:
       fail-fast: false
       matrix:
         skill_repo: [skill-temporal-cloud-setup, skill-temporal-developer, skill-temporal-ops, skill-temporal-serverless]
-    uses: ./.github/workflows/bump-skill.yml
+    uses: ./.github/workflows/release-skill.yml
     secrets: inherit
     with:
       skill_repo: ${{ matrix.skill_repo }}
       package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.skill_repo)] }}
 
   fetch_skills:
-    needs: bump_skills
+    needs: release_skills
     strategy:
       fail-fast: true
       matrix:

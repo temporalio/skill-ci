@@ -19,9 +19,14 @@ Plugins:
 
 | Strategy | Skills | Plugins | Effect |
 |----------|--------|---------|--------|
-| `patch` / `minor` / `major` | yes | yes | 1. Bump version<br>2. Open a release PR and auto merge it<br>3. Create a GitHub Release<br>4. Use this new release |
+| `patch` / `minor` / `major` | yes | yes | 1. Calculate the next version<br>2. Create a GitHub Release for the current validated `main` commit<br>3. Use this new release |
 | `latest` | yes | yes | Use the latest release instead of releasing a new version |
 | `rollback` | yes | no | Use `v{rollback_version}` instead of releasing a new version |
+
+GitHub Releases are the source of truth for skill versions. `SKILL.md` does not
+contain a version field. A repository with no prior release starts at `v0.1.0`;
+later releases apply the selected semantic-version bump to the latest release.
+The release fails if no packaged skill content has changed since that release.
 
 ## Syncing
 
@@ -43,11 +48,12 @@ The content is then placed in the following locations:
 | `APP_CLIENT_ID`    | GitHub App **client ID** |
 | `APP_PRIVATE_KEY`  | GitHub App private key (PEM) |
 
-The app needs **Contents (write)** and **Pull Requests (write)** permissions.
+The app needs **Contents (write)**, **Pull Requests (write)**, and
+**Checks (read)** permissions.
 
 ## How to add a new skill repo
 
-1. Install the GitHub App on the new skill repo with Contents (write) and Pull Requests (write).
+1. Install the GitHub App on the new skill repo with Contents (write), Pull Requests (write), and Checks (read).
 2. In [`.github/workflows/plugin-release.yml`](.github/workflows/plugin-release.yml) add the new inputs, then append the repo to all skill matrices.
 3. In [`.github/workflows/bump-plugin.yml`](.github/workflows/bump-plugin.yml) add a named `download-artifact` step into that skill's dest folder.
 
