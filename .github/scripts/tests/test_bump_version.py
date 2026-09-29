@@ -1,7 +1,6 @@
 import unittest
 
-from bump_version import set_json_version
-from next_version import get_next_version
+from bump_version import get_next_version, set_json_version
 
 
 class TestGetNextVersion(unittest.TestCase):

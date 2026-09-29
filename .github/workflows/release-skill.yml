@@ -94,7 +94,7 @@ jobs:
             fi
           fi
 
-          new_version="$(uv run .github/scripts/next_version.py "$CURRENT_TAG" "$PACKAGE_STRATEGY")"
+          new_version="$(uv run .github/scripts/bump_version.py "$CURRENT_TAG" "$PACKAGE_STRATEGY")"
           if git -C "$skill_dir" rev-parse --verify --quiet "refs/tags/v$new_version" >/dev/null; then
             echo "Release tag v$new_version already exists" >&2
             exit 1

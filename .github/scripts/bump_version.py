@@ -2,7 +2,20 @@ import argparse
 import json
 from pathlib import Path
 
-from next_version import get_next_version
+import semver
+
+
+INITIAL_VERSION = "0.1.0"
+VERSION_STRATEGIES = {"patch", "minor", "major"}
+
+
+def get_next_version(tag: str, strategy: str) -> str:
+    if strategy not in VERSION_STRATEGIES:
+        raise ValueError(f"Unsupported version strategy: {strategy}")
+    if not tag:
+        return INITIAL_VERSION
+    version = semver.Version.parse(tag.removeprefix("v"))
+    return str(version.next_version(strategy))
 
 
 def set_json_version(text: str, version: str) -> str:
@@ -15,15 +28,16 @@ def set_json_version(text: str, version: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", type=Path, help="Path to plugin.json")
-    parser.add_argument("tag", help="The current tag")
+    parser.add_argument("path", type=Path, nargs="?", help="Path to plugin.json to update")
+    parser.add_argument("tag", help="The current release tag, or an empty string")
     parser.add_argument("strategy", help="The package strategy")
     args = parser.parse_args()
 
     new_version = get_next_version(args.tag, args.strategy)
-    text = args.path.read_text(encoding="utf-8", newline="")
-    updated = set_json_version(text, new_version)
-    args.path.write_text(updated, encoding="utf-8", newline="")
+    if args.path:
+        text = args.path.read_text(encoding="utf-8", newline="")
+        updated = set_json_version(text, new_version)
+        args.path.write_text(updated, encoding="utf-8", newline="")
     print(new_version)
 
 
