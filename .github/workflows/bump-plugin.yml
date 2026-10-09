@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       package_strategy:
-        required: true
+        required: false
         type: string
     secrets:
       APP_CLIENT_ID:
