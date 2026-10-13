@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       skill-temporal-cloud-setup_package_strategy: &skill_package_strategy
-        required: true
-        type: choice
-        default: latest
-        options: [patch, minor, major, latest, rollback]
+        description: 'Optional: patch, minor, major, or rollback; leave blank for no bump'
+        required: false
+        type: string
       skill-temporal-cloud-setup_rollback_version: &rollback_version
         required: false
         type: string
@@ -18,14 +17,6 @@ on:
       skill-temporal-ops_rollback_version: *rollback_version
       skill-temporal-serverless_package_strategy: *skill_package_strategy
       skill-temporal-serverless_rollback_version: *rollback_version
-      
-      claude-temporal-plugin_package_strategy: &plugin_package_strategy
-        required: true
-        type: choice
-        default: latest
-        options: [patch, minor, major, latest]
-      codex-temporal-plugin_package_strategy: *plugin_package_strategy
-      cursor-temporal-plugin_package_strategy: *plugin_package_strategy
 
 permissions:
   contents: read
@@ -35,7 +26,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  infer_plugin_strategy:
+    runs-on: ubuntu-latest
+    outputs:
+      package_strategy: ${{ steps.strategy.outputs.package_strategy }}
+    steps:
+      - name: Checkout skill-ci repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Infer plugin bump from skill bumps
+        id: strategy
+        env:
+          RELEASE_INPUTS: ${{ toJSON(inputs) }}
+        run: |
+          set -euo pipefail
+          strategy="$(python3 .github/scripts/infer_plugin_strategy.py "$RELEASE_INPUTS")"
+          echo "package_strategy=$strategy" >> "$GITHUB_OUTPUT"
+
   release_skills:
+    needs: infer_plugin_strategy
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +58,11 @@ jobs:
       package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.skill_repo)] }}
 
   fetch_skills:
-    needs: release_skills
+    needs: [infer_plugin_strategy, release_skills]
+    if: >-
+      ${{ !cancelled() &&
+          needs.infer_plugin_strategy.outputs.package_strategy != '' &&
+          (needs.release_skills.result == 'success' || needs.release_skills.result == 'skipped') }}
     strategy:
       fail-fast: true
       matrix:
@@ -60,7 +75,8 @@ jobs:
       rollback_version: ${{ inputs[format('{0}_rollback_version', matrix.skill_repo)] }}
 
   bump_plugins:
-    needs: fetch_skills
+    needs: [infer_plugin_strategy, fetch_skills]
+    if: ${{ !cancelled() && needs.fetch_skills.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,4 +85,4 @@ jobs:
     secrets: inherit
     with:
       plugin_repo: ${{ matrix.plugin_repo }}
-      package_strategy: ${{ inputs[format('{0}_package_strategy', matrix.plugin_repo)] }}
+      package_strategy: ${{ needs.infer_plugin_strategy.outputs.package_strategy }}

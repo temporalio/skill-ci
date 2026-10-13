@@ -17,11 +17,20 @@ Plugins:
 
 ## Releasing new versions
 
-| Strategy | Skills | Plugins | Effect |
-|----------|--------|---------|--------|
-| `patch` / `minor` / `major` | yes | yes | 1. Calculate the next version<br>2. Create a GitHub Release for the current validated `main` commit<br>3. Use this new release |
-| `latest` | yes | yes | Use the latest release instead of releasing a new version |
-| `rollback` | yes | no | Use `v{rollback_version}` instead of releasing a new version |
+Each skill's package strategy is optional. Leave it blank for no bump, or enter
+`patch`, `minor`, `major`, or `rollback`.
+
+| Skill strategy | Effect |
+|----------------|--------|
+| `patch` / `minor` / `major` | Calculate the next version, create a GitHub Release for the current validated `main` commit, and use this new release |
+| Omitted | Use the latest release instead of releasing a new skill version |
+| `rollback` | Use `v{rollback_version}` instead of releasing a new skill version |
+
+Plugin bumps are inferred automatically from the largest skill bump:
+`major` > `minor` > `patch` > no bump. For example, a patch skill bump and a major
+skill bump produce a major bump for all three plugins. A rollback counts as a
+patch bump so the rolled-back skill content is shipped in a new plugin release.
+If every skill strategy is omitted, no skills or plugins are released.
 
 GitHub Releases are the source of truth for skill versions. `SKILL.md` does not
 contain a version field. A repository with no prior release starts at `v0.1.0`;
